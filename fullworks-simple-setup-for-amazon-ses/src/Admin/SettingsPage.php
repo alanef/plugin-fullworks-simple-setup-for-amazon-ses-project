@@ -228,12 +228,14 @@ class SettingsPage {
 	}
 
 	private function definedNotice() {
-		return ' <span class="description"><em>'
-			. wp_kses(
-				__( 'Defined in <code>wp-config.php</code>.', 'fullworks-simple-setup-for-amazon-ses' ),
-				array( 'code' => array() )
-			)
-			. '</em></span>';
+		return __( 'Defined in <code>wp-config.php</code>.', 'fullworks-simple-setup-for-amazon-ses' );
+	}
+
+	private function printDefinedNotice() {
+		printf(
+			' <span class="description"><em>%s</em></span>',
+			wp_kses( $this->definedNotice(), array( 'code' => array() ) )
+		);
 	}
 
 	public function printSenderSectionInfo() {
@@ -241,33 +243,31 @@ class SettingsPage {
 	}
 
 	public function awsAccessKeyCallback() {
-		$defined  = Credentials::isAccessKeyDefined();
-		$value    = $defined ? Credentials::accessKey() : ( $this->options['aws_access_key'] ?? '' );
-		$disabled = $defined ? ' disabled="disabled"' : '';
+		$defined = Credentials::isAccessKeyDefined();
+		$value   = $defined ? Credentials::accessKey() : ( $this->options['aws_access_key'] ?? '' );
 		printf(
 			'<input type="text" id="aws_access_key" name="fssfas_settings[aws_access_key]" value="%s" class="regular-text"%s />',
 			esc_attr( $value ),
-			$disabled // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			disabled( $defined, true, false )
 		);
 		if ( $defined ) {
-			echo $this->definedNotice(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			$this->printDefinedNotice();
 		}
 	}
 
 	public function awsSecretKeyCallback() {
-		$defined  = Credentials::isSecretKeyDefined();
+		$defined = Credentials::isSecretKeyDefined();
 		// Never echo the actual secret value back into the page when locked.
-		$value    = $defined ? '••••••••' : ( $this->options['aws_secret_key'] ?? '' );
-		$type     = $defined ? 'text' : 'password';
-		$disabled = $defined ? ' disabled="disabled"' : '';
+		$value   = $defined ? '••••••••' : ( $this->options['aws_secret_key'] ?? '' );
+		$type    = $defined ? 'text' : 'password';
 		printf(
 			'<input type="%s" id="aws_secret_key" name="fssfas_settings[aws_secret_key]" value="%s" class="regular-text"%s />',
 			esc_attr( $type ),
 			esc_attr( $value ),
-			$disabled // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			disabled( $defined, true, false )
 		);
 		if ( $defined ) {
-			echo $this->definedNotice(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			$this->printDefinedNotice();
 		}
 	}
 
@@ -291,11 +291,10 @@ class SettingsPage {
 
 		$defined        = Credentials::isRegionDefined();
 		$current_region = $defined ? Credentials::region() : ( $this->options['aws_region'] ?? 'us-east-1' );
-		$disabled       = $defined ? ' disabled="disabled"' : '';
 
 		printf(
 			'<select id="aws_region" name="fssfas_settings[aws_region]"%s>',
-			$disabled // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			disabled( $defined, true, false )
 		);
 		foreach ( $regions as $key => $label ) {
 			printf(
@@ -307,7 +306,7 @@ class SettingsPage {
 		}
 		echo '</select>';
 		if ( $defined ) {
-			echo $this->definedNotice(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			$this->printDefinedNotice();
 		}
 	}
 
