@@ -98,19 +98,51 @@ class SesSender {
 	 * @return string|null The raw MIME message, or null on failure.
 	 */
 	private function buildRawMessage( $to, $subject, $message, $headers, $attachments ) {
-		if ( ! class_exists( \PHPMailer\PHPMailer\PHPMailer::class, false ) ) {
-			require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
-			require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
-		}
-
 		$parsed = $this->parseHeaders( $headers );
 
 		$from_email = $parsed['from_email'] ?? $this->options['from_email'] ?? get_option( 'admin_email' );
 		$from_name  = $parsed['from_name'] ?? $this->options['from_name'] ?? get_bloginfo( 'name' );
 
+		/*
+		 * Load WordPress' bundled PHPMailer.
+		 *
+		 * The plugin handbook permits require_once of a core file when a
+		 * function/class from that file is used immediately afterwards:
+		 *   https://developer.wordpress.org/plugins/wordpress-org/common-issues/#calling-files-directly
+		 *
+		 * That exception applies here, and the require_once pattern below is
+		 * the same one core uses inside wp_mail() in wp-includes/pluggable.php.
+		 *
+		 * We must load PHPMailer ourselves because this code path runs from
+		 * the pre_wp_mail filter, which fires BEFORE wp_mail() reaches its own
+		 * PHPMailer require. When we intercept successfully wp_mail() short-
+		 * circuits and never executes those lines, so the class is unavailable
+		 * on the first send of a request unless we load it here. WordPress
+		 * exposes no public function that loads PHPMailer in isolation.
+		 *
+		 * PHPMailer is instantiated on the very next line to validate addresses
+		 * and strip CR/LF from header values, defending against header-injection
+		 * via wp_mail() arguments — see the docblock above. Exception.php is
+		 * deliberately loaded separately, immediately before the try block
+		 * whose catch arms reference \PHPMailer\PHPMailer\Exception.
+		 */
+		if ( ! class_exists( \PHPMailer\PHPMailer\PHPMailer::class, false ) ) {
+			require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+		}
 		$mail          = new \PHPMailer\PHPMailer\PHPMailer( true );
 		$mail->CharSet = 'UTF-8';
 
+		/*
+		 * This is the latest position PHP syntax permits this require to sit
+		 * before the catch arms below resolve \PHPMailer\PHPMailer\Exception.
+		 * PHP forbids statements between try { ... } and its catch, and the
+		 * Exception class must already be loaded when any PHPMailer call
+		 * inside the try block throws — so this line is the closest we can
+		 * place the require to its first use.
+		 */
+		if ( ! class_exists( \PHPMailer\PHPMailer\Exception::class, false ) ) {
+			require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+		}
 		try {
 			$mail->setFrom( $from_email, $from_name );
 
