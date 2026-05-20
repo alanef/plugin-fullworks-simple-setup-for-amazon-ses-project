@@ -2,7 +2,7 @@
 Contributors: fullworks, alanfuller
 Tags: email, aws, ses, smtp, amazon
 Requires at least: 5.0
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 8.2
 Stable tag: 1.3.3
 License: GPLv2 or later
@@ -98,6 +98,7 @@ See the "External Services" section above — in short, the contents of any emai
 
 = 1.3.3 =
 * Updated bundled `aws/aws-sdk-php` to the latest stable release.
+* Updated tested to to wp7.0
 
 = 1.3.2 =
 * Updated bundled `aws/aws-sdk-php` to the latest stable release.
