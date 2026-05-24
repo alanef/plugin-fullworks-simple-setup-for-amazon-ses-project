@@ -3,7 +3,7 @@
  * Plugin Name: Fullworks Simple Setup for Amazon SES
  * Plugin URI: https://fullworksplugins.com/products/fullworks-simple-setup-for-amazon-ses
  * Description: Send WordPress emails through Amazon SES (Simple Email Service).
- * Version: 1.3.3
+ * Version: 1.4.0
  * Requires at least: 5.0
  * Requires PHP: 8.2
  * Author: Fullworks
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'FSSFAS_VERSION', '1.3.3' );
+define( 'FSSFAS_VERSION', '1.4.0' );
 define( 'FSSFAS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSSFAS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

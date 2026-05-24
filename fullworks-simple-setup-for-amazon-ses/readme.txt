@@ -4,7 +4,7 @@ Tags: email, aws, ses, smtp, amazon
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 8.2
-Stable tag: 1.3.3
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -95,6 +95,9 @@ See the "External Services" section above — in short, the contents of any emai
 4. Review your WordPress error logs for specific error messages
 
 == Changelog ==
+
+= 1.4.0 =
+* First WP org release
 
 = 1.3.3 =
 * Updated bundled `aws/aws-sdk-php` to the latest stable release.
