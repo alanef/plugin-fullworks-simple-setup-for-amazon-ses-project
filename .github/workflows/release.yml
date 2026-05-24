@@ -36,6 +36,7 @@ jobs:
         coverage: none
 
     - name: Verify tag matches plugin version
+      id: get_version
       run: |
         TAG_VERSION=${GITHUB_REF#refs/tags/v}
         PLUGIN_VERSION=$(grep -oP 'Version:\s*\K[\d.]+' fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php)
@@ -47,6 +48,8 @@ jobs:
           echo "Tag version does not match plugin version!"
           exit 1
         fi
+
+        echo "VERSION=$PLUGIN_VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Install dependencies
       run: |
@@ -105,7 +108,17 @@ jobs:
         cd ..
         svn cp trunk tags/${{ steps.get_version.outputs.VERSION }}
 
-        # Commit to SVN
+        # Sync WordPress.org listing assets (banner / icon / screenshots).
+        # These live in /assets at the SVN root, alongside trunk and tags —
+        # they are NOT shipped to users.
+        if [ -d "$GITHUB_WORKSPACE/.wordpress-org" ]; then
+          mkdir -p assets
+          rsync -av --delete --exclude='.svn' --exclude='README.md' "$GITHUB_WORKSPACE/.wordpress-org/" assets/
+          svn add --force assets --auto-props --parents --depth infinity -q || true
+          svn delete $( svn status assets | sed -e '/^!/!d' -e 's/^!//' ) || true
+        fi
+
+        # Commit to SVN (covers trunk, tags and assets in one revision)
         svn commit -m "Release version ${{ steps.get_version.outputs.VERSION }}" --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --no-auth-cache
 
         echo "✅ Successfully deployed to WordPress.org"

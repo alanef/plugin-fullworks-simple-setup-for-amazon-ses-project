@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Fullworks Simple Setup for Amazon SES icon">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#073674"/>
+      <stop offset="1" stop-color="#0c91de"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="244" height="244" rx="42" fill="url(#bg)" stroke="#5ac2f5" stroke-width="6"/>
+  <g fill="#f5fbff" stroke="#c6e5f9" stroke-width="4">
+    <circle cx="82" cy="102" r="32"/>
+    <circle cx="124" cy="78" r="42"/>
+    <circle cx="170" cy="104" r="34"/>
+    <rect x="54" y="103" width="140" height="46" rx="18"/>
+  </g>
+  <g>
+    <rect x="58" y="148" width="116" height="28" rx="8" fill="#13375e" stroke="#2a679e" stroke-width="3"/>
+    <rect x="58" y="181" width="116" height="28" rx="8" fill="#13375e" stroke="#2a679e" stroke-width="3"/>
+    <circle cx="144" cy="162" r="6" fill="#54dc96"/>
+    <circle cx="160" cy="162" r="6" fill="#ff9718"/>
+    <circle cx="144" cy="195" r="6" fill="#54dc96"/>
+    <circle cx="160" cy="195" r="6" fill="#ff9718"/>
+  </g>
+  <g>
+    <rect x="88" y="121" width="106" height="66" rx="10" fill="#ff9718" stroke="#ffb946" stroke-width="4"/>
+    <path d="M96 136 L141 164 L186 136" fill="none" stroke="#fff5e8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M96 178 L141 154 L186 178" fill="none" stroke="#d95e0a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
