@@ -4,7 +4,7 @@ Tags: email, aws, ses, smtp, amazon
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 8.2
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,6 +23,7 @@ Features:
 * Test email functionality
 * Credentials stored in the WordPress database, or defined as wp-config.php constants to keep them out of the database
 * Support for HTML and plain text emails
+* Staging-safe email redirect: reroute all outgoing mail to a catch-all address (always, or only on non-production environments) while still sending for real through SES
 
 == Installation ==
 
@@ -57,6 +58,26 @@ define( 'FSSFAS_REGION',            getenv( 'FSSFAS_REGION' ) ?: 'us-east-1' );
 
 Each constant is independent — you can define one, two, or all three. Any constant that is defined takes precedence over the value saved in the settings page, and the matching field in the admin UI is locked while the constant is in effect.
 
+== Email Redirect for Staging ==
+
+When you copy a production site to a staging or development environment, real WordPress and WooCommerce emails (order confirmations, password resets, etc.) can be accidentally sent to real customers. The Email Redirect feature prevents this: every outgoing email is still sent for real through Amazon SES, but the recipients are rewritten to one or more catch-all addresses you control. You see exactly what would have been delivered, fully rendered, without any real recipient being contacted.
+
+* The original To, Cc and Bcc are preserved in `X-Original-To`, `X-Original-Cc` and `X-Original-Bcc` headers, and the subject is prefixed with the original recipient (e.g. `[SES redirected → customer@example.com] Your order`).
+* Cc and Bcc are dropped from actual delivery — only the catch-all address(es) receive mail.
+* While redirect is active, a warning banner is shown in wp-admin and each redirected send is written to the error log, so trapped mail is never silent.
+* The admin "Send Test Email" button always sends to the address you type, ignoring redirect.
+
+Redirect Mode has three settings: Never (default), "Redirect when environment is not production" (uses the WordPress environment type, `WP_ENVIRONMENT_TYPE`), and Always.
+
+Like credentials, the redirect settings can be defined as constants in `wp-config.php` so a staging environment can enforce them via environment variables:
+
+`
+define( 'FSSFAS_REDIRECT_MODE', getenv( 'FSSFAS_REDIRECT_MODE' ) ?: 'non_production' );
+define( 'FSSFAS_REDIRECT_TO',   getenv( 'FSSFAS_REDIRECT_TO' )   ?: 'staging-mail@example.com' );
+`
+
+`FSSFAS_REDIRECT_MODE` accepts `never`, `non_production` or `always`. `FSSFAS_REDIRECT_TO` is a comma-separated list of catch-all addresses. When defined, the matching field in the admin UI is locked.
+
 == External Services ==
 
 This plugin sends your site's outgoing email through Amazon Simple Email Service (Amazon SES), a service provided by Amazon Web Services, Inc. When WordPress sends an email and the plugin has been configured with valid AWS credentials, the message is transmitted to Amazon SES instead of being delivered by your server's default mailer.
@@ -87,6 +108,10 @@ Your IAM user needs the `ses:SendEmail` and `ses:SendRawEmail` permissions.
 
 See the "External Services" section above — in short, the contents of any email WordPress sends (recipients, sender, subject, body, attachments) plus your AWS Access Key ID and region for authentication.
 
+= How do I stop a staging site from emailing real customers? =
+
+Set Redirect Mode (under Settings > Fullworks SES) to "Always" or "Redirect when environment is not production" and enter one or more catch-all addresses in "Redirect To". All outgoing mail is then rerouted to those addresses while still being sent for real through SES, so you can verify it without any customer receiving it. See the "Email Redirect for Staging" section above. You can also enforce this from `wp-config.php` with the `FSSFAS_REDIRECT_MODE` and `FSSFAS_REDIRECT_TO` constants.
+
 = My emails are not being sent. What should I check? =
 
 1. Verify your AWS credentials are correct
@@ -95,6 +120,11 @@ See the "External Services" section above — in short, the contents of any emai
 4. Review your WordPress error logs for specific error messages
 
 == Changelog ==
+
+= 1.5.0 =
+* Added staging-safe email redirect: reroute all outgoing mail to one or more catch-all addresses (Never / non-production / Always) while still sending for real through SES. Original recipients are preserved in `X-Original-To`/`X-Original-Cc`/`X-Original-Bcc` headers, Cc/Bcc are dropped from delivery, and the subject is prefixed with the original recipient.
+* A warning banner is shown in wp-admin while redirect is active, and each redirected send is logged, so trapped mail is never silent.
+* Redirect can be configured in the settings UI or via `wp-config.php` constants (`FSSFAS_REDIRECT_MODE`, `FSSFAS_REDIRECT_TO`).
 
 = 1.4.0 =
 * First WP org release

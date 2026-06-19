@@ -5,6 +5,7 @@ namespace Fullworks\SimpleSetupForAmazonSes\Admin;
 defined( 'ABSPATH' ) || exit;
 
 use Fullworks\SimpleSetupForAmazonSes\Credentials;
+use Fullworks\SimpleSetupForAmazonSes\Redirect;
 use Fullworks\SimpleSetupForAmazonSes\Email\SesSender;
 
 class SettingsPage {
@@ -17,6 +18,7 @@ class SettingsPage {
 		add_action( 'admin_init', array( $this, 'initSettings' ) );
 		add_action( 'admin_init', array( $this, 'registerPrivacyPolicyContent' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueueAssets' ) );
+		add_action( 'admin_notices', array( $this, 'maybeShowRedirectNotice' ) );
 		add_action( 'wp_ajax_fssfas_test_email', array( $this, 'handleTestEmail' ) );
 	}
 
@@ -84,6 +86,40 @@ class SettingsPage {
 			__( 'Fullworks Simple Setup for Amazon SES', 'fullworks-simple-setup-for-amazon-ses' ),
 			wpautop( $content )
 		);
+	}
+
+	/**
+	 * Show a persistent admin banner whenever mail redirect is active (or
+	 * misconfigured), so trapped mail is never silent.
+	 */
+	public function maybeShowRedirectNotice() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$settings_url = admin_url( 'options-general.php?page=fullworks-simple-setup-for-amazon-ses' );
+
+		if ( Redirect::isActive() ) {
+			printf(
+				'<div class="notice notice-warning"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+				esc_html__( '⚠️ Fullworks SES — staging mail redirect is active.', 'fullworks-simple-setup-for-amazon-ses' ),
+				sprintf(
+					/* translators: %s: catch-all address list. */
+					esc_html__( 'All outgoing email is being rerouted to %s. No real recipient will receive mail.', 'fullworks-simple-setup-for-amazon-ses' ),
+					'<code>' . esc_html( implode( ', ', Redirect::addresses() ) ) . '</code>'
+				),
+				esc_url( $settings_url ),
+				esc_html__( 'Review settings', 'fullworks-simple-setup-for-amazon-ses' )
+			);
+		} elseif ( Redirect::isMisconfigured() ) {
+			printf(
+				'<div class="notice notice-error"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+				esc_html__( '⚠️ Fullworks SES — redirect is misconfigured.', 'fullworks-simple-setup-for-amazon-ses' ),
+				esc_html__( 'A redirect mode is selected but no valid “Redirect To” address is set, so mail is being delivered to its real recipients.', 'fullworks-simple-setup-for-amazon-ses' ),
+				esc_url( $settings_url ),
+				esc_html__( 'Fix settings', 'fullworks-simple-setup-for-amazon-ses' )
+			);
+		}
 	}
 
 	public function createAdminPage() {
@@ -164,6 +200,29 @@ class SettingsPage {
 		);
 
 		add_settings_section(
+			'fssfas_redirect',
+			esc_html__( 'Email Redirect (Staging)', 'fullworks-simple-setup-for-amazon-ses' ),
+			array( $this, 'printRedirectSectionInfo' ),
+			'fssfas-settings'
+		);
+
+		add_settings_field(
+			'redirect_mode',
+			esc_html__( 'Redirect Mode', 'fullworks-simple-setup-for-amazon-ses' ),
+			array( $this, 'redirectModeCallback' ),
+			'fssfas-settings',
+			'fssfas_redirect'
+		);
+
+		add_settings_field(
+			'redirect_to',
+			esc_html__( 'Redirect To', 'fullworks-simple-setup-for-amazon-ses' ),
+			array( $this, 'redirectToCallback' ),
+			'fssfas-settings',
+			'fssfas_redirect'
+		);
+
+		add_settings_section(
 			'fssfas_test',
 			esc_html__( 'Test Email', 'fullworks-simple-setup-for-amazon-ses' ),
 			array( $this, 'printTestSectionInfo' ),
@@ -212,6 +271,22 @@ class SettingsPage {
 
 		if ( isset( $input['from_name'] ) ) {
 			$new_input['from_name'] = sanitize_text_field( $input['from_name'] );
+		}
+
+		// Redirect mode — preserve DB value when locked by a constant.
+		if ( Redirect::isModeDefined() ) {
+			$new_input['redirect_mode'] = $existing['redirect_mode'] ?? Redirect::MODE_NEVER;
+		} elseif ( isset( $input['redirect_mode'] ) && in_array( $input['redirect_mode'], Redirect::modes(), true ) ) {
+			$new_input['redirect_mode'] = $input['redirect_mode'];
+		} else {
+			$new_input['redirect_mode'] = Redirect::MODE_NEVER;
+		}
+
+		// Redirect catch-all addresses — preserve DB value when locked by a constant.
+		if ( Redirect::isToDefined() ) {
+			$new_input['redirect_to'] = $existing['redirect_to'] ?? '';
+		} elseif ( isset( $input['redirect_to'] ) ) {
+			$new_input['redirect_to'] = $this->sanitizeEmailList( $input['redirect_to'] );
 		}
 
 		return $new_input;
@@ -323,6 +398,93 @@ class SettingsPage {
 			'<input type="text" id="from_name" name="fssfas_settings[from_name]" value="%s" class="regular-text" />',
 			isset( $this->options['from_name'] ) ? esc_attr( $this->options['from_name'] ) : ''
 		);
+	}
+
+	/**
+	 * Sanitize a comma-separated list of email addresses, dropping invalid ones.
+	 *
+	 * @param string $value Raw comma-separated input.
+	 * @return string Cleaned comma-separated list.
+	 */
+	private function sanitizeEmailList( $value ) {
+		$clean = array();
+		foreach ( explode( ',', (string) $value ) as $entry ) {
+			$email = sanitize_email( trim( $entry ) );
+			if ( '' !== $email && is_email( $email ) ) {
+				$clean[] = $email;
+			}
+		}
+
+		return implode( ', ', array_values( array_unique( $clean ) ) );
+	}
+
+	public function printRedirectSectionInfo() {
+		echo wp_kses(
+			__( 'Reroute <strong>all</strong> outgoing mail to a fixed catch-all address while still sending it for real through Amazon SES. Useful on staging sites: you see exactly what would have been sent, but no real recipient is contacted. Original recipients are preserved in <code>X-Original-To</code>, <code>X-Original-Cc</code> and <code>X-Original-Bcc</code> headers.', 'fullworks-simple-setup-for-amazon-ses' ),
+			array(
+				'strong' => array(),
+				'code'   => array(),
+			)
+		);
+		echo '<p class="description">';
+		echo wp_kses(
+			__( 'Can also be defined as PHP constants in <code>wp-config.php</code> (<code>FSSFAS_REDIRECT_MODE</code>, <code>FSSFAS_REDIRECT_TO</code>). When defined, the matching field below is locked.', 'fullworks-simple-setup-for-amazon-ses' ),
+			array( 'code' => array() )
+		);
+		echo '</p>';
+		echo '<p class="description">';
+		printf(
+			/* translators: %s: current WordPress environment type. */
+			esc_html__( 'Current environment type: %s', 'fullworks-simple-setup-for-amazon-ses' ),
+			'<code>' . esc_html( function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production' ) . '</code>'
+		);
+		echo '</p>';
+	}
+
+	public function redirectModeCallback() {
+		$defined = Redirect::isModeDefined();
+		$current = $defined ? Redirect::mode() : ( $this->options['redirect_mode'] ?? Redirect::MODE_NEVER );
+
+		$labels = array(
+			Redirect::MODE_NEVER          => __( 'Never redirect (send to real recipients)', 'fullworks-simple-setup-for-amazon-ses' ),
+			Redirect::MODE_NON_PRODUCTION => __( 'Redirect when environment is not production', 'fullworks-simple-setup-for-amazon-ses' ),
+			Redirect::MODE_ALWAYS         => __( 'Always redirect', 'fullworks-simple-setup-for-amazon-ses' ),
+		);
+
+		printf(
+			'<select id="redirect_mode" name="fssfas_settings[redirect_mode]"%s>',
+			disabled( $defined, true, false )
+		);
+		foreach ( $labels as $key => $label ) {
+			printf(
+				'<option value="%s" %s>%s</option>',
+				esc_attr( $key ),
+				selected( $current, $key, false ),
+				esc_html( $label )
+			);
+		}
+		echo '</select>';
+		if ( $defined ) {
+			$this->printDefinedNotice();
+		}
+		echo '<p class="description">' . esc_html__( '“Not production” uses the WordPress environment type (WP_ENVIRONMENT_TYPE).', 'fullworks-simple-setup-for-amazon-ses' ) . '</p>';
+	}
+
+	public function redirectToCallback() {
+		$defined = Redirect::isToDefined();
+		$value   = $defined
+			? implode( ', ', Redirect::addresses() )
+			: ( $this->options['redirect_to'] ?? '' );
+
+		printf(
+			'<input type="text" id="redirect_to" name="fssfas_settings[redirect_to]" value="%s" class="regular-text"%s />',
+			esc_attr( $value ),
+			disabled( $defined, true, false )
+		);
+		if ( $defined ) {
+			$this->printDefinedNotice();
+		}
+		echo '<p class="description">' . esc_html__( 'Catch-all address(es). Separate multiple addresses with commas.', 'fullworks-simple-setup-for-amazon-ses' ) . '</p>';
 	}
 
 	public function printTestSectionInfo() {

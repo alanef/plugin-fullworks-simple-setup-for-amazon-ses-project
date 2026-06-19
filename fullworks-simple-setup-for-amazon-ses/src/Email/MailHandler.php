@@ -5,6 +5,7 @@ namespace Fullworks\SimpleSetupForAmazonSes\Email;
 defined( 'ABSPATH' ) || exit;
 
 use Fullworks\SimpleSetupForAmazonSes\Credentials;
+use Fullworks\SimpleSetupForAmazonSes\Redirect;
 
 class MailHandler {
 
@@ -32,8 +33,12 @@ class MailHandler {
 		$headers     = isset( $args['headers'] ) ? $args['headers'] : '';
 		$attachments = isset( $args['attachments'] ) ? $args['attachments'] : array();
 
+		// When redirect mode is active, rewrite recipients to the catch-all list
+		// so no real recipient is mailed. Passing null leaves recipients intact.
+		$redirect_to = Redirect::isActive() ? Redirect::addresses() : null;
+
 		// Send via SES
-		$sent = $this->sesSender->send( $to, $subject, $message, $headers, $attachments );
+		$sent = $this->sesSender->send( $to, $subject, $message, $headers, $attachments, $redirect_to );
 
 		// If sent successfully, prevent WordPress from sending again
 		if ( $sent ) {

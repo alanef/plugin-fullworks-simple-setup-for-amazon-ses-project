@@ -40,7 +40,9 @@ composer run-script build
 The plugin uses PSR-4 autoloading with namespace `Fullworks\SimpleSetupForAmazonSes\`:
 - `Plugin.php` - Singleton entry point, initializes admin and email handler
 - `Admin/SettingsPage.php` - WordPress settings API integration, handles AWS credentials
-- `Email/MailHandler.php` - Intercepts WordPress emails via `pre_wp_mail` filter
+- `Credentials.php` - Resolves AWS connection settings from constants then DB options
+- `Redirect.php` - Resolves staging email-redirect settings (mode + catch-all addresses) from constants then DB options
+- `Email/MailHandler.php` - Intercepts WordPress emails via `pre_wp_mail` filter; applies redirect when `Redirect::isActive()`
 - `Email/SesSender.php` - AWS SES integration using `sendRawEmail` for full email flexibility
 
 ### Key Design Decisions
@@ -48,12 +50,13 @@ The plugin uses PSR-4 autoloading with namespace `Fullworks\SimpleSetupForAmazon
 2. **AWS Integration**: Uses `sendRawEmail` instead of `sendEmail` for attachment support and full email control
 3. **Fallback Behavior**: Returns `null` from filter to allow WordPress default mail on SES failure
 4. **Settings Storage**: AWS credentials stored in WordPress options as `fssfas_settings`
+5. **Staging Redirect**: When `Redirect::isActive()`, `MailHandler` passes a catch-all list to `SesSender`, which rewrites `To` to the catch-all, drops Cc/Bcc from delivery, preserves originals in `X-Original-*` headers, and prefixes the subject. The redirect decision lives in `MailHandler`, NOT `SesSender`, so the admin test-email path (which calls `SesSender::send()` directly without the `$redirect_to` argument) is never redirected. Active redirect shows an admin banner and logs each send.
 
 ### Naming Conventions
 - **Slug / text domain**: `fullworks-simple-setup-for-amazon-ses`
 - **Prefix**: `fssfas` (lowercase) / `FSSFAS` (uppercase) — used for option keys, hooks, AJAX actions, settings groups, sections, page IDs, constants
 - **Namespace**: `Fullworks\SimpleSetupForAmazonSes\`
-- **wp-config constants**: `FSSFAS_ACCESS_KEY_ID`, `FSSFAS_SECRET_ACCESS_KEY`, `FSSFAS_REGION`
+- **wp-config constants**: `FSSFAS_ACCESS_KEY_ID`, `FSSFAS_SECRET_ACCESS_KEY`, `FSSFAS_REGION`, `FSSFAS_REDIRECT_MODE`, `FSSFAS_REDIRECT_TO`
 
 ### AWS SES Implementation Details
 - Builds complete MIME-formatted raw emails with proper headers
