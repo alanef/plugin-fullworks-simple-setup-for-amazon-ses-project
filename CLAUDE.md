@@ -75,7 +75,7 @@ The plugin uses PSR-4 autoloading with namespace `Fullworks\SimpleSetupForAmazon
 ### Development Constraints
 - PHP 8.2+ required (driven by aws/aws-sdk-php ^3 minimum)
 - Must maintain WordPress coding standards (PHPCS configured)
-- Plugin must work in WordPress 5.0+ environment
+- Plugin must work in WordPress 6.0+ environment
 - AWS credentials must have `ses:SendRawEmail` permission (NOT `ses:SendEmail`)
 
 ### Testing
