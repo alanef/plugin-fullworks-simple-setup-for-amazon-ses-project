@@ -46,7 +46,21 @@ class SesSender {
 		}
 	}
 
-	public function send( $to, $subject, $message, $headers = '', $attachments = array() ) {
+	/**
+	 * Send an email through Amazon SES.
+	 *
+	 * @param string|array $to          Recipient(s).
+	 * @param string       $subject     Subject line.
+	 * @param string       $message     Message body.
+	 * @param string|array $headers     Additional headers.
+	 * @param array        $attachments Attachment paths.
+	 * @param string[]|null $redirect_to When a non-empty array, recipients are
+	 *                                   rewritten to these catch-all addresses
+	 *                                   and the originals preserved in
+	 *                                   X-Original-* headers. Null disables it.
+	 * @return bool
+	 */
+	public function send( $to, $subject, $message, $headers = '', $attachments = array(), $redirect_to = null ) {
 		if ( ! $this->client ) {
 			if ( '' === $this->lastError ) {
 				$this->lastError = 'SES client not initialized.';
@@ -54,7 +68,7 @@ class SesSender {
 			return false;
 		}
 
-		$raw_message = $this->buildRawMessage( $to, $subject, $message, $headers, $attachments );
+		$raw_message = $this->buildRawMessage( $to, $subject, $message, $headers, $attachments, $redirect_to );
 		if ( null === $raw_message ) {
 			// $this->lastError already set by buildRawMessage().
 			return false;
@@ -95,9 +109,10 @@ class SesSender {
 	 * untrusted input that reaches wp_mail() cannot be used to inject extra
 	 * headers into the message handed to Amazon SES.
 	 *
+	 * @param string[]|null $redirect_to Catch-all recipients, or null.
 	 * @return string|null The raw MIME message, or null on failure.
 	 */
-	private function buildRawMessage( $to, $subject, $message, $headers, $attachments ) {
+	private function buildRawMessage( $to, $subject, $message, $headers, $attachments, $redirect_to = null ) {
 		$parsed = $this->parseHeaders( $headers );
 
 		$from_email = $parsed['from_email'] ?? $this->options['from_email'] ?? get_option( 'admin_email' );
@@ -146,13 +161,48 @@ class SesSender {
 		try {
 			$mail->setFrom( $from_email, $from_name );
 
-			$this->addRecipients( $mail, 'addAddress', $to );
-			if ( ! empty( $parsed['cc'] ) ) {
-				$this->addRecipients( $mail, 'addCC', $parsed['cc'] );
+			$redirecting = is_array( $redirect_to ) && ! empty( $redirect_to );
+
+			if ( $redirecting ) {
+				// Preserve the intended recipients for inspection, then deliver
+				// only to the catch-all list. CC and BCC are dropped from
+				// delivery entirely — kept solely in the X-Original-* headers.
+				$this->addOriginalRecipientHeader( $mail, 'X-Original-To', $to );
+				if ( ! empty( $parsed['cc'] ) ) {
+					$this->addOriginalRecipientHeader( $mail, 'X-Original-Cc', $parsed['cc'] );
+				}
+				if ( ! empty( $parsed['bcc'] ) ) {
+					$this->addOriginalRecipientHeader( $mail, 'X-Original-Bcc', $parsed['bcc'] );
+				}
+
+				$this->addRecipients( $mail, 'addAddress', $redirect_to );
+
+				$original_label = $this->flattenRecipients( $to );
+
+				// Always log redirected sends so trapped mail is never silent.
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log(
+					sprintf(
+						'[Fullworks SES] Mail redirected: original recipient(s) "%s" -> catch-all "%s".',
+						'' !== $original_label ? $original_label : '(none)',
+						implode( ', ', $redirect_to )
+					)
+				);
+
+				if ( '' !== $original_label ) {
+					/* translators: %1$s: original recipient(s); %2$s: original subject. */
+					$subject = sprintf( '[SES redirected → %1$s] %2$s', $original_label, $subject );
+				}
+			} else {
+				$this->addRecipients( $mail, 'addAddress', $to );
+				if ( ! empty( $parsed['cc'] ) ) {
+					$this->addRecipients( $mail, 'addCC', $parsed['cc'] );
+				}
+				if ( ! empty( $parsed['bcc'] ) ) {
+					$this->addRecipients( $mail, 'addBCC', $parsed['bcc'] );
+				}
 			}
-			if ( ! empty( $parsed['bcc'] ) ) {
-				$this->addRecipients( $mail, 'addBCC', $parsed['bcc'] );
-			}
+
 			if ( ! empty( $parsed['reply_to'] ) ) {
 				$this->addRecipients( $mail, 'addReplyTo', $parsed['reply_to'] );
 			}
@@ -215,6 +265,41 @@ class SesSender {
 			} catch ( \PHPMailer\PHPMailer\Exception $e ) {
 				$this->logDebug( 'Skipped invalid recipient: ' . $e->getMessage() );
 			}
+		}
+	}
+
+	/**
+	 * Flatten a recipient value (string or array) to a single, clean,
+	 * comma-separated string with any CR/LF removed.
+	 *
+	 * @param string|array $value Recipient(s).
+	 * @return string
+	 */
+	private function flattenRecipients( $value ) {
+		$value = is_array( $value ) ? implode( ', ', $value ) : (string) $value;
+		$value = str_replace( array( "\r", "\n" ), '', $value );
+
+		return trim( $value );
+	}
+
+	/**
+	 * Record the original recipients in a custom header before they are
+	 * rewritten for redirect delivery.
+	 *
+	 * @param \PHPMailer\PHPMailer\PHPMailer $mail  PHPMailer instance.
+	 * @param string                         $name  Header name (e.g. X-Original-To).
+	 * @param string|array                   $value Original recipient(s).
+	 */
+	private function addOriginalRecipientHeader( $mail, $name, $value ) {
+		$flat = $this->flattenRecipients( $value );
+		if ( '' === $flat ) {
+			return;
+		}
+
+		try {
+			$mail->addCustomHeader( $name, $flat );
+		} catch ( \PHPMailer\PHPMailer\Exception $e ) {
+			$this->logDebug( 'Skipped original-recipient header: ' . $e->getMessage() );
 		}
 	}
 
