@@ -1,42 +1,33 @@
-# IDE
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
-
-# Dependencies
-node_modules/
-vendor/
-fullworks-simple-setup-for-amazon-ses/vendor/
-
-# Build artifacts
+.directory
+.DS_Store
 dist/
 build/
 zipped/
-*.zip
-
-# WordPress environment
+tmp-build/
+node_modules/
+/vendor/
+/fullworks-simple-setup-for-amazon-ses/vendor/
+/fullworks-simple-setup-for-amazon-ses/includes/vendor/
+.phpunit.result.cache
+*.phpunit.result.cache
 .wp-env.override.json
-wordpress/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
+.env
+.env.*
+!.env.example
 *.log
+__pycache__/
+# repository specific
+*.swp
+*.swo
+*~
+vendor/
+fullworks-simple-setup-for-amazon-ses/vendor/
+*.zip
+wordpress/
+Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Environment files
-.env
 .env.local
-
-# Composer
-composer.lock
-
-# Package manager locks (at root level)
-package-lock.json
-yarn.lock

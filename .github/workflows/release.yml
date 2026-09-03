@@ -1,139 +1,140 @@
-name: Release
+# Managed by wordpress-plugin-boilerplate/tooling - fix there first, then run bin/sync-tooling.sh
+name: Build Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'    # Matches v1.7.3
-      - '*.*.*'      # Matches 1.7.3
-      - 'v*.*'       # Matches v2.3
-      - '*.*'        # Matches 2.3
+      - 'v*.*.*'
+      - '*.*.*'
 
 permissions:
   contents: write
 
+env:
+  PLUGIN_DIR: fullworks-simple-setup-for-amazon-ses
+  PLUGIN_FILE: fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php
+  SVN_SLUG: fullworks-simple-setup-for-amazon-ses
+
 jobs:
-  quality-checks:
+  run-checks:
     uses: ./.github/workflows/checks.yml
 
-  release:
-    needs: quality-checks
+  build-release:
+    needs: run-checks
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-    - name: Extract PHP version
-      id: php_version
-      run: |
-        PHP_VERSION=$(grep -oP 'Requires PHP:\s*\K[\d.]+' fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php || echo "8.2")
-        echo "version=$PHP_VERSION" >> $GITHUB_OUTPUT
+      - name: Get required PHP version
+        id: php_version
+        run: |
+          PHP_VERSION=$(grep -m1 "Requires PHP:" "$PLUGIN_FILE" | sed -E 's/.*Requires PHP:[[:space:]]*//' | tr -d ' \r')
+          echo "PHP_VERSION=${PHP_VERSION:-7.4}" >> $GITHUB_OUTPUT
 
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ steps.php_version.outputs.version }}
-        tools: composer:v2, wp-cli
-        coverage: none
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php_version.outputs.PHP_VERSION }}
+          tools: composer:v2, wp-cli
 
-    - name: Verify tag matches plugin version
-      id: get_version
-      run: |
-        TAG_VERSION=${GITHUB_REF#refs/tags/v}
-        PLUGIN_VERSION=$(grep -oP 'Version:\s*\K[\d.]+' fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php)
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
 
-        echo "Tag version: $TAG_VERSION"
-        echo "Plugin version: $PLUGIN_VERSION"
+      - name: Install WP-CLI dist-archive command
+        env:
+          # See checks.yml for why the token is handed back as http-basic.
+          GITHUB_TOKEN: ""
+          COMPOSER_AUTH: '{"http-basic":{"github.com":{"username":"x-access-token","password":"${{ github.token }}"}}}'
+        run: |
+          composer config --global --unset github-oauth.github.com 2>/dev/null || true
+          rm -f "$HOME/.composer/auth.json" \
+                "$HOME/.config/composer/auth.json" \
+                "$HOME/.wp-cli/packages/auth.json" 2>/dev/null || true
+          wp package install wp-cli/dist-archive-command:v3.1.0
 
-        if [ "$TAG_VERSION" != "$PLUGIN_VERSION" ]; then
-          echo "Tag version does not match plugin version!"
-          exit 1
-        fi
+      - name: Build plugin for release
+        run: composer run-script build
 
-        echo "VERSION=$PLUGIN_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(grep -m1 -E "^[[:space:]]*\*?[[:space:]]*Version:" "$PLUGIN_FILE" | sed -E 's/.*Version:[[:space:]]*//' | tr -d ' \r')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version $VERSION"
 
-    - name: Install dependencies
-      run: |
-        composer install --prefer-dist --no-progress --no-dev
-        cd fullworks-simple-setup-for-amazon-ses && composer install --prefer-dist --no-progress --no-dev
+      - name: Name the release zip
+        run: cp "zipped/$PLUGIN_DIR-free.zip" "zipped/$PLUGIN_DIR-${{ steps.get_version.outputs.VERSION }}.zip"
 
-    - name: Install WP-CLI dist-archive command
-      env:
-        # WP-CLI's bundled Composer rejects the runner's ghs_ token when
-        # GitHub's longer stateless-token format is in play (its oauth-token
-        # validation fails on the format), which makes this step flake. The
-        # token is persisted in a config FILE by setup-php, so clearing env
-        # vars alone is not enough — strip the persisted github-oauth from
-        # every composer home (default + wp-cli's own) and clone the public
-        # command anonymously with empty Composer auth.
-        GITHUB_TOKEN: ""
-        COMPOSER_AUTH: "{}"
-      run: |
-        composer config --global --unset github-oauth.github.com 2>/dev/null || true
-        rm -f "$HOME/.composer/auth.json" \
-              "$HOME/.config/composer/auth.json" \
-              "$HOME/.wp-cli/packages/auth.json" 2>/dev/null || true
-        wp package install wp-cli/dist-archive-command:v3.1.0
+      - name: Verify tag matches plugin version
+        run: |
+          PLUGIN_VERSION=${{ steps.get_version.outputs.VERSION }}
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          TAG_VERSION=${TAG_VERSION#v}
+          echo "Plugin version: $PLUGIN_VERSION"
+          echo "Git tag version: $TAG_VERSION"
+          if [ "$PLUGIN_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch between plugin version ($PLUGIN_VERSION) and git tag ($TAG_VERSION)"
+            exit 1
+          fi
+          case "$PLUGIN_VERSION" in
+            *-*)
+              echo "::error::Refusing to release a pre-release version ($PLUGIN_VERSION)"
+              exit 1
+              ;;
+          esac
+          echo "Tag version matches plugin version: $PLUGIN_VERSION"
 
-    - name: Build plugin
-      run: composer run-script build
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            Release of Fullworks Simple Setup for Amazon SES v${{ steps.get_version.outputs.VERSION }}
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: zipped/fullworks-simple-setup-for-amazon-ses.zip
-        body: |
-          Release of Fullworks Simple Setup for Amazon SES v${{ github.ref_name }}
+            ## Changes
+            See the [change log](https://github.com/alanef/plugin-fullworks-simple-setup-for-amazon-ses-project/blob/master/CHANGELOG.md) for details.
 
-          ## Installation
-          1. Download `fullworks-simple-setup-for-amazon-ses.zip` from the assets below
-          2. In WordPress admin, go to Plugins > Add New > Upload Plugin
-          3. Choose the downloaded zip file and click Install Now
-          4. Activate the plugin
-          5. Configure your AWS credentials in Settings > Fullworks SES
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Deploy to WordPress.org
-      env:
-        SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
-        SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-      run: |
-        # Install subversion
-        sudo apt-get update
-        sudo apt-get install -y subversion
+            ## Installation
+            Download the attached zip file and upload to your WordPress site.
+          draft: false
+          prerelease: false
+          files: |
+            zipped/fullworks-simple-setup-for-amazon-ses-${{ steps.get_version.outputs.VERSION }}.zip
 
-        # Extract plugin to temporary directory
-        mkdir -p svn-tmp
-        cd svn-tmp
-        unzip ../zipped/fullworks-simple-setup-for-amazon-ses.zip
+      - name: Deploy to WordPress.org
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          if [ -z "$SVN_USERNAME" ] || [ -z "$SVN_PASSWORD" ]; then
+            echo "::error::SVN_USERNAME / SVN_PASSWORD secrets are not set - cannot deploy to WordPress.org"
+            exit 1
+          fi
+          sudo apt-get update -q
+          sudo apt-get install -y -q subversion
 
-        # Checkout SVN repository
-        svn checkout https://plugins.svn.wordpress.org/fullworks-simple-setup-for-amazon-ses/ svn-repo --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --no-auth-cache
+          mkdir -p svn-tmp
+          cd svn-tmp
+          unzip -q "../zipped/$PLUGIN_DIR-free.zip"
 
-        # Copy files to trunk
-        rsync -av --delete --exclude='.svn' fullworks-simple-setup-for-amazon-ses/ svn-repo/trunk/
+          svn checkout "https://plugins.svn.wordpress.org/$SVN_SLUG/" svn-repo --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --no-auth-cache
 
-        # Add new files and remove deleted files
-        cd svn-repo/trunk
-        svn add --force * --auto-props --parents --depth infinity -q || true
-        svn delete $( svn status | sed -e '/^!/!d' -e 's/^!//' ) || true
+          if [ -d "svn-repo/tags/$VERSION" ]; then
+            echo "::error::Tag $VERSION already exists on WordPress.org SVN"
+            exit 1
+          fi
 
-        # Copy to tags
-        cd ..
-        svn cp trunk tags/${{ steps.get_version.outputs.VERSION }}
+          rsync -a --delete --exclude='.svn' "$PLUGIN_DIR/" svn-repo/trunk/
 
-        # Sync WordPress.org listing assets (banner / icon / screenshots).
-        # These live in /assets at the SVN root, alongside trunk and tags —
-        # they are NOT shipped to users.
-        if [ -d "$GITHUB_WORKSPACE/.wordpress-org" ]; then
-          mkdir -p assets
-          rsync -av --delete --exclude='.svn' --exclude='README.md' "$GITHUB_WORKSPACE/.wordpress-org/" assets/
-          svn add --force assets --auto-props --parents --depth infinity -q || true
-          svn delete $( svn status assets | sed -e '/^!/!d' -e 's/^!//' ) || true
-        fi
+          cd svn-repo/trunk
+          svn add --force * --auto-props --parents --depth infinity -q || true
+          svn status | grep '^!' | sed 's/^! *//' | xargs -r -I{} svn delete "{}" || true
 
-        # Commit to SVN (covers trunk, tags and assets in one revision)
-        svn commit -m "Release version ${{ steps.get_version.outputs.VERSION }}" --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --no-auth-cache
+          cd ..
+          svn cp trunk "tags/$VERSION"
+          svn commit -m "Release version $VERSION" --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --no-auth-cache
 
-        echo "✅ Successfully deployed to WordPress.org"
+          echo "Successfully deployed $VERSION to WordPress.org"

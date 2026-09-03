@@ -1,35 +1,51 @@
 {
-    "name": "fullworks/fullworks-simple-setup-for-amazon-ses-project",
-    "description": "Development environment for the Fullworks Simple Setup for Amazon SES WordPress plugin",
-    "type": "project",
-    "license": "GPL-2.0-or-later",
-    "config": {
-        "platform": {
-            "php": "8.2"
-        },
-        "allow-plugins": {
-            "dealerdirect/phpcodesniffer-composer-installer": true
-        }
-    },
-    "require-dev": {
-        "squizlabs/php_codesniffer": "^3.7",
-        "wp-coding-standards/wpcs": "^3.0",
-        "phpcompatibility/phpcompatibility-wp": "^2.1",
-        "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
-    },
-    "scripts": {
-        "phpcs": "phpcs",
-        "phpcs-fix": "phpcbf",
-        "phpcs-security": "phpcs -p --standard=phpcs_sec.xml",
-        "phpcompat": "phpcs -p --standard=PHPCompatibilityWP  --ignore=*/vendor/*  --extensions=php --runtime-set testVersion 8.2-8.4 fullworks-simple-setup-for-amazon-ses",
-        "build": [
-            "cd fullworks-simple-setup-for-amazon-ses && composer install --no-dev",
-            "mkdir -p zipped",
-            "wp dist-archive fullworks-simple-setup-for-amazon-ses zipped/fullworks-simple-setup-for-amazon-ses.zip --force"
-        ],
-        "post-update-cmd": [
-            "@composer update --working-dir=fullworks-simple-setup-for-amazon-ses",
-            "wp i18n make-pot fullworks-simple-setup-for-amazon-ses fullworks-simple-setup-for-amazon-ses/languages/fullworks-simple-setup-for-amazon-ses.pot --exclude=vendor,node_modules"
-        ]
+  "name": "fullworks/fullworks-simple-setup-for-amazon-ses-project",
+  "description": "Development project for the Fullworks Simple Setup for Amazon SES WordPress plugin",
+  "type": "project",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "alan",
+      "email": "alan@fullworksplugins.com"
     }
+  ],
+  "config": {
+    "platform": {
+      "php": "8.2.27"
+    },
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
+  "require-dev": {
+    "squizlabs/php_codesniffer": "3.*",
+    "wp-coding-standards/wpcs": ">=2.3.0",
+    "phpcompatibility/phpcompatibility-wp": "*",
+    "phpunit/phpunit": "^9.5",
+    "yoast/phpunit-polyfills": "^1.1"
+  },
+  "scripts": {
+    "post-update-cmd": [
+      "@plugin-update",
+      "@make-pot"
+    ],
+    "plugin-update": "if [ -f fullworks-simple-setup-for-amazon-ses/composer.json ]; then composer update -d fullworks-simple-setup-for-amazon-ses; fi",
+    "make-pot": "mkdir -p fullworks-simple-setup-for-amazon-ses/languages && wp i18n make-pot ./fullworks-simple-setup-for-amazon-ses ./fullworks-simple-setup-for-amazon-ses/languages/fullworks-simple-setup-for-amazon-ses.pot --skip-audit --exclude='vendor,includes/vendor,node_modules'",
+    "build": [
+      "if [ -f fullworks-simple-setup-for-amazon-ses/composer.json ]; then composer install -d fullworks-simple-setup-for-amazon-ses --no-dev; fi",
+      "mkdir -p zipped",
+      "wp dist-archive fullworks-simple-setup-for-amazon-ses zipped/fullworks-simple-setup-for-amazon-ses-free.zip --force"
+    ],
+    "phpcs": "phpcs fullworks-simple-setup-for-amazon-ses -s --standard=phpcs_sec.xml --ignore=*/vendor/* --extensions=php",
+    "compat:8.4": "phpcs fullworks-simple-setup-for-amazon-ses -s --standard=PHPCompatibilityWP --ignore=*/vendor/* --extensions=php --runtime-set testVersion 8.4",
+    "compat:8.3": "phpcs fullworks-simple-setup-for-amazon-ses -s --standard=PHPCompatibilityWP --ignore=*/vendor/* --extensions=php --runtime-set testVersion 8.3",
+    "compat:8.2": "phpcs fullworks-simple-setup-for-amazon-ses -s --standard=PHPCompatibilityWP --ignore=*/vendor/* --extensions=php --runtime-set testVersion 8.2",
+    "check": [
+      "@compat:8.4",
+      "@compat:8.3",
+      "@compat:8.2",
+      "@phpcs"
+    ],
+    "test": "npm test"
+  }
 }

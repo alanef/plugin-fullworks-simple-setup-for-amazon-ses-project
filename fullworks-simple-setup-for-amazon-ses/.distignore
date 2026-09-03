@@ -1,29 +1,37 @@
-# Development files
+.distignore
+.editorconfig
 .git
 .gitignore
-.distignore
-
-# Build tools
-composer.lock
-
-# Tests
-tests
-Tests
+.github
+.phpunit.result.cache
+.phpcs.xml
+phpcs.xml
+phpcs.xml.dist
 phpunit.xml
 phpunit.xml.dist
-
+composer.json
+composer.lock
+package.json
+package-lock.json
+node_modules
+tests
+docs
+*.scss
+*.map
+*.log
+*.cache
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+# Development files
+# Build tools
+# Tests
+Tests
 # Documentation / vendor docs not needed at runtime
 CONTRIBUTING.md
 *.md
-docs
-.github
-
 # IDE
-.idea
-.vscode
 *.swp
 *.swo
-
 # OS
-.DS_Store
-Thumbs.db

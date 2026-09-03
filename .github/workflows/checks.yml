@@ -1,147 +1,157 @@
-name: Quality Checks
+# Managed by wordpress-plugin-boilerplate/tooling - fix there first, then run bin/sync-tooling.sh
+name: Plugin Check
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - master
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - master
   workflow_call:
 
+permissions:
+  contents: read
+
+env:
+  PLUGIN_DIR: fullworks-simple-setup-for-amazon-ses
+  PLUGIN_FILE: fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php
+  VERSION_CONSTANT: "FSSFAS_VERSION"
+
 jobs:
-  quality-checks:
+  checks:
+    name: PHPCS, version consistency and Plugin Check
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Extract PHP version
-      id: php_version
-      run: |
-        PHP_VERSION=$(grep -oP 'Requires PHP:\s*\K[\d.]+' fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php || echo "8.2")
-        echo "version=$PHP_VERSION" >> $GITHUB_OUTPUT
+      - name: Get required PHP version
+        id: php_version
+        run: |
+          PHP_VERSION=$(grep -m1 "Requires PHP:" "$PLUGIN_FILE" | sed -E 's/.*Requires PHP:[[:space:]]*//' | tr -d ' \r')
+          echo "PHP_VERSION=${PHP_VERSION:-7.4}" >> $GITHUB_OUTPUT
+          echo "Plugin requires PHP ${PHP_VERSION:-7.4}"
 
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ steps.php_version.outputs.version }}
-        tools: composer:v2,  wp-cli
-        coverage: none
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php_version.outputs.PHP_VERSION }}
+          coverage: none
+          tools: composer, wp-cli
 
-    - name: Validate composer.json
-      run: |
-        composer validate --no-check-all --no-check-publish
-        cd fullworks-simple-setup-for-amazon-ses && composer validate --no-check-all --no-check-publish
+      - name: Validate composer.json and composer.lock
+        run: composer validate --strict
 
-    - name: Install dependencies
-      run: |
-        composer install --prefer-dist --no-progress
-        cd fullworks-simple-setup-for-amazon-ses && composer install --prefer-dist --no-progress --no-dev
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
 
-    - name: Run Security Checks
-      run: composer run-script phpcs-security
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
 
-    - name: Check PHP Compatibility
-      run: composer run-script phpcompat
+      - name: Run phpcs checks
+        run: composer run-script check
 
-    - name: Check version consistency
-      run: |
-        PLUGIN_VERSION=$(grep -oP 'Version:\s*\K[\d.]+' fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php)
-        README_VERSION=$(grep -oP 'Stable tag:\s*\K[\d.]+' fullworks-simple-setup-for-amazon-ses/readme.txt)
-        CONSTANT_VERSION=$(grep -oP "FSSFAS_VERSION['\"],\s*['\"]\\K[\\d.]+" fullworks-simple-setup-for-amazon-ses/fullworks-simple-setup-for-amazon-ses.php)
+      - name: Verify version consistency
+        run: |
+          PLUGIN_VERSION=$(grep -m1 -E "^[[:space:]]*\*?[[:space:]]*Version:" "$PLUGIN_FILE" | sed -E 's/.*Version:[[:space:]]*//' | tr -d ' \r')
+          README_VERSION=$(grep -m1 "Stable tag:" "$PLUGIN_DIR/readme.txt" | sed -E 's/.*Stable tag:[[:space:]]*//' | tr -d ' \r')
 
-        echo "Plugin header version: $PLUGIN_VERSION"
-        echo "Readme stable tag: $README_VERSION"
-        echo "Version constant: $CONSTANT_VERSION"
+          echo "Plugin header version: $PLUGIN_VERSION"
+          echo "Readme stable tag:     $README_VERSION"
 
-        if [ "$PLUGIN_VERSION" != "$README_VERSION" ] || [ "$PLUGIN_VERSION" != "$CONSTANT_VERSION" ]; then
-          echo "Version mismatch detected!"
-          exit 1
-        fi
-    - name: Install WP-CLI dist-archive command
-      env:
-        # WP-CLI's bundled Composer rejects the runner's ghs_ token when
-        # GitHub's longer stateless-token format is in play (its oauth-token
-        # validation fails on the format), which makes this step flake. The
-        # token is persisted in a config FILE by setup-php, so clearing env
-        # vars alone is not enough — strip the persisted github-oauth from
-        # every composer home (default + wp-cli's own) and clone the public
-        # command anonymously with empty Composer auth.
-        GITHUB_TOKEN: ""
-        COMPOSER_AUTH: "{}"
-      run: |
-        composer config --global --unset github-oauth.github.com 2>/dev/null || true
-        rm -f "$HOME/.composer/auth.json" \
-              "$HOME/.config/composer/auth.json" \
-              "$HOME/.wp-cli/packages/auth.json" 2>/dev/null || true
-        wp package install wp-cli/dist-archive-command:v3.1.0
+          if [ "$PLUGIN_VERSION" != "$README_VERSION" ]; then
+            echo "::error::Version mismatch between plugin header ($PLUGIN_VERSION) and readme.txt ($README_VERSION)"
+            exit 1
+          fi
 
-    - name: Build plugin
-      run: |
-        cd fullworks-simple-setup-for-amazon-ses && composer install --no-dev && cd ..
-        wp dist-archive ./fullworks-simple-setup-for-amazon-ses ./fullworks-simple-setup-for-amazon-ses.zip
-        mkdir tmp-build
-        unzip fullworks-simple-setup-for-amazon-ses.zip -d tmp-build
+          if [ -n "$VERSION_CONSTANT" ]; then
+            CONSTANT_VERSION=$(grep -m1 "define.*$VERSION_CONSTANT" "$PLUGIN_FILE" | sed -E "s/.*['\"]([^'\"]+)['\"][[:space:]]*\).*/\1/")
+            echo "Version constant:      $CONSTANT_VERSION"
+            if [ "$PLUGIN_VERSION" != "$CONSTANT_VERSION" ]; then
+              echo "::error::Version mismatch between plugin header ($PLUGIN_VERSION) and $VERSION_CONSTANT ($CONSTANT_VERSION)"
+              exit 1
+            fi
+          fi
+          echo "All version numbers match: $PLUGIN_VERSION"
 
-    # NOTE: wordpress/plugin-check-action@v1 installs the *latest* @wordpress/env
-    # at runtime (`npm -g i @wordpress/env`, no version pin). 11.7.0 (2026-05-27)
-    # intermittently leaves the container "Environment not initialized" in CI, so
-    # we run Plugin Check by hand against the pinned, last-known-good 11.6.0.
-    - name: WordPress Plugin Check (pinned @wordpress/env)
-      run: |
-        set -euo pipefail
-        PLUGIN_SLUG="fullworks-simple-setup-for-amazon-ses"
-        PLUGIN_DIR="$(realpath "tmp-build/${PLUGIN_SLUG}")"
+      - name: Install WP-CLI dist-archive command
+        env:
+          # WP-CLI bundles Composer 2.2, whose github-oauth validation rejects
+          # the runner's GITHUB_TOKEN format ("contains invalid characters").
+          # setup-php persists that token in auth.json, so strip the persisted
+          # github-oauth from every composer home (default + wp-cli's own).
+          # Installing anonymously instead is flaky: shared runner IPs exhaust
+          # GitHub's unauthenticated API limit ("Could not authenticate against
+          # github.com"). So hand the same token back as http-basic, which
+          # Composer 2.2 accepts without the format check.
+          GITHUB_TOKEN: ""
+          COMPOSER_AUTH: '{"http-basic":{"github.com":{"username":"x-access-token","password":"${{ github.token }}"}}}'
+        run: |
+          composer config --global --unset github-oauth.github.com 2>/dev/null || true
+          rm -f "$HOME/.composer/auth.json" \
+                "$HOME/.config/composer/auth.json" \
+                "$HOME/.wp-cli/packages/auth.json" 2>/dev/null || true
+          wp package install wp-cli/dist-archive-command:v3.1.0
 
-        npm -g --no-fund i @wordpress/env@11.6.0
+      - name: Build plugin
+        run: |
+          composer run-script build
+          mkdir tmp-build
+          unzip -q "zipped/$PLUGIN_DIR-free.zip" -d tmp-build
 
-        cat > .wp-env.json <<EOF
-        { "core": null, "port": 8880, "testsPort": 8881, "plugins": [ "https://downloads.wordpress.org/plugin/plugin-check.zip" ], "mappings": { "wp-content/plugins/${PLUGIN_SLUG}": "${PLUGIN_DIR}" } }
-        EOF
+      - name: Run plugin check
+        uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: './tmp-build/${{ env.PLUGIN_DIR }}'
 
-        # wp-env start can flake; retry, resetting between attempts.
-        started=0
-        for i in 1 2 3; do
-          if wp-env start --update; then started=1; break; fi
-          echo "wp-env start attempt $i failed; retrying..."
-          wp-env stop >/dev/null 2>&1 || true
-          sleep 5
-        done
-        [ "$started" = "1" ] || { echo "::error::wp-env failed to start"; exit 1; }
+  tests:
+    name: PHPUnit (wp-env)
+    runs-on: ubuntu-latest
 
-        # Confirm the environment is actually usable before checking.
-        wp-env run cli wp cli info
-        wp-env run cli wp plugin activate "$PLUGIN_SLUG"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        # Keep stdout as clean JSON; send wp-env's own chatter to a separate file.
-        wp-env run cli wp plugin check "$PLUGIN_SLUG" \
-          --format=json \
-          --exclude-files=.wp-env.json \
-          --require=./wp-content/plugins/plugin-check/cli.php \
-          > pc-results.json 2> pc-stderr.txt || true
-        echo "--- Plugin Check stderr ---"; cat pc-stderr.txt || true
-        echo "--- Plugin Check results ---"; cat pc-results.json || true
+      - name: Get required PHP version
+        id: php_version
+        run: |
+          PHP_VERSION=$(grep -m1 "Requires PHP:" "$PLUGIN_FILE" | sed -E 's/.*Requires PHP:[[:space:]]*//' | tr -d ' \r')
+          echo "PHP_VERSION=${PHP_VERSION:-7.4}" >> $GITHUB_OUTPUT
 
-        # A clean run prints a plain-text "No errors found." (not JSON).
-        if grep -q "No errors found" pc-results.json; then
-          echo "Plugin Check: clean (no findings)."
-          exit 0
-        fi
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php_version.outputs.PHP_VERSION }}
+          coverage: none
+          tools: composer
 
-        # Otherwise plugin-check prints, per file, a "FILE: <path>" header
-        # followed by a JSON array of findings — so the file as a whole is NOT
-        # a single JSON document. Slurp just the array lines and tally by type.
-        # Fail closed if there is neither a clean marker nor any array.
-        ARRAYS="$(grep '^\[' pc-results.json || true)"
-        if [ -z "$ARRAYS" ]; then
-          echo "::error::Plugin Check produced no parseable results (see log above)"
-          exit 1
-        fi
-        ERRORS="$(printf '%s\n' "$ARRAYS" | jq -s '[.[][] | select(.type == "ERROR")] | length')"
-        WARNINGS="$(printf '%s\n' "$ARRAYS" | jq -s '[.[][] | select(.type == "WARNING")] | length')"
+      - name: Install composer dependencies
+        run: composer install --prefer-dist --no-progress
 
-        echo "Plugin Check: ${ERRORS} error(s), ${WARNINGS} warning(s) — warnings are advisory."
-        if [ "${ERRORS}" -gt 0 ]; then
-          echo "::error::Plugin Check reported ${ERRORS} error(s)"
-          exit 1
-        fi
-        echo "Plugin Check: passed (no errors)."
+      - name: Install plugin dependencies
+        run: |
+          if [ -f "$PLUGIN_DIR/composer.json" ]; then
+            composer install -d "$PLUGIN_DIR" --no-dev --prefer-dist --no-progress
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Start wp-env
+        run: npx wp-env start
+
+      - name: Run tests
+        run: npm test

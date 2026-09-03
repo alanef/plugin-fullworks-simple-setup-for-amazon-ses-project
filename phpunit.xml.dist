@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Managed by wordpress-plugin-boilerplate/tooling - fix there first, then run bin/sync-tooling.sh -->
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.5/phpunit.xsd"
+    bootstrap="tests/bootstrap.php"
+    backupGlobals="false"
+    colors="true"
+    convertErrorsToExceptions="true"
+    convertNoticesToExceptions="true"
+    convertWarningsToExceptions="true"
+    >
+    <testsuites>
+        <testsuite name="Fullworks Simple Setup for Amazon SES Test Suite">
+            <!-- Either naming convention: tests/test-foo.php or tests/**/FooTest.php -->
+            <directory prefix="test-" suffix=".php">./tests</directory>
+            <directory suffix="Test.php">./tests</directory>
+        </testsuite>
+    </testsuites>
+    <coverage processUncoveredFiles="true">
+        <include>
+            <directory suffix=".php">./fullworks-simple-setup-for-amazon-ses</directory>
+        </include>
+        <exclude>
+            <directory>./fullworks-simple-setup-for-amazon-ses/vendor</directory>
+            <directory>./fullworks-simple-setup-for-amazon-ses/includes/vendor</directory>
+            <directory>./fullworks-simple-setup-for-amazon-ses/languages</directory>
+        </exclude>
+    </coverage>
+</phpunit>

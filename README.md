@@ -163,3 +163,35 @@ Your IAM user needs the following permissions. You can either use the AWS manage
 ## License
 
 GPL v2 or later. See LICENSE file for details.
+
+<!-- tooling:start (managed by wordpress-plugin-boilerplate/tooling - do not edit by hand) -->
+## Development
+
+This repository uses the standard Fullworks free-plugin tooling, documented in
+[wordpress-plugin-boilerplate](https://github.com/alanef/wordpress-plugin-boilerplate/blob/main/CLAUDE.md).
+
+[![Plugin Check](https://github.com/alanef/plugin-fullworks-simple-setup-for-amazon-ses-project/actions/workflows/checks.yml/badge.svg)](https://github.com/alanef/plugin-fullworks-simple-setup-for-amazon-ses-project/actions/workflows/checks.yml)
+
+```
+plugin-fullworks-simple-setup-for-amazon-ses-project/                     # repository root: development tooling
+├── .github/workflows/             # checks.yml on push/PR, release.yml on tag
+├── tests/                         # PHPUnit suite, run inside wp-env
+├── .wp-env.json                   # dev :8414, tests :8415
+├── composer.json                  # dev dependencies and quality scripts
+├── package.json                   # wp-env and test scripts
+├── phpunit.xml.dist / run-tests.sh
+└── fullworks-simple-setup-for-amazon-ses/                # the plugin (shipped as-is via .distignore)
+```
+
+```bash
+composer install && npm install        # dev tools
+npm run start                          # http://localhost:8414  (admin / password)
+composer run check                     # PHPCompatibility + security sniffs
+npm test                               # PHPUnit in the wp-env tests container
+composer run build                     # zipped/fullworks-simple-setup-for-amazon-ses-free.zip
+```
+
+Releases: set the version in the plugin header and `readme.txt`, update `CHANGELOG.md`,
+tag `vX.Y.Z` and push. CI builds the zip, creates the GitHub release and deploys to
+WordPress.org.
+<!-- tooling:end -->
