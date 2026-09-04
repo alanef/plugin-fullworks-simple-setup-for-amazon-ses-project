@@ -9,6 +9,7 @@ tmp-build/
 node_modules/
 /vendor/
 /fullworks-simple-setup-for-amazon-ses/vendor/
+/fullworks-simple-setup-for-amazon-ses/composer.lock
 /fullworks-simple-setup-for-amazon-ses/includes/vendor/
 .phpunit.result.cache
 *.phpunit.result.cache
