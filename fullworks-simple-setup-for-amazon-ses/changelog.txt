@@ -1,0 +1,40 @@
+= 1.5.0 =
+* Added staging-safe email redirect: reroute all outgoing mail to one or more catch-all addresses (Never / non-production / Always) while still sending for real through SES. Original recipients are preserved in `X-Original-To`/`X-Original-Cc`/`X-Original-Bcc` headers, Cc/Bcc are dropped from delivery, and the subject is prefixed with the original recipient.
+* A warning banner is shown in wp-admin while redirect is active, and each redirected send is logged, so trapped mail is never silent.
+* Redirect can be configured in the settings UI or via `wp-config.php` constants (`FSSFAS_REDIRECT_MODE`, `FSSFAS_REDIRECT_TO`).
+
+= 1.4.0 =
+* First WP org release
+
+= 1.3.3 =
+* Updated bundled `aws/aws-sdk-php` to the latest stable release.
+* Updated tested to to wp7.0
+
+= 1.3.2 =
+* Updated bundled `aws/aws-sdk-php` to the latest stable release.
+* Changed 6 escape late outputs to comply with reviewer recommendations.
+
+= 1.3.1 =
+* Updated bundled `aws/aws-sdk-php` to the latest stable release.
+* Updated URI to correct path.
+
+= 1.3.0 =
+* Renamed plugin to "Fullworks Simple Setup for Amazon SES" (previously "Simple AWS SES"). Slug, namespace (`Fullworks\SimpleSetupForAmazonSes\`), prefix (`fssfas` / `FSSFAS`), option key (`fssfas_settings`), AJAX action and wp-config constants (`FSSFAS_ACCESS_KEY_ID`, `FSSFAS_SECRET_ACCESS_KEY`, `FSSFAS_REGION`) all updated.
+* All admin UI strings, AJAX responses, and the test email body are now translatable via the `fullworks-simple-setup-for-amazon-ses` text domain.
+* Security: outgoing messages are now assembled with WordPress' bundled PHPMailer, which validates addresses and strips line breaks from headers, closing a potential email header injection path when other plugins pass untrusted data to `wp_mail()`.
+* The settings page JavaScript and CSS are now enqueued properly (`wp_enqueue_script` / `wp_localize_script`) instead of being printed inline.
+* Added a privacy policy suggestion via `wp_add_privacy_policy_content()`, and an "External Services" section in the readme documenting exactly what data is sent to Amazon SES.
+* Updated bundled `aws/aws-sdk-php` to the latest stable release and stripped the unused AWS service clients so the plugin download is dramatically smaller.
+
+= 1.2.1 =
+* Test email button now sends via AWS SES directly instead of `wp_mail()`, so it no longer reports success when SES has actually failed and WordPress fell back to the default mailer.
+* AWS errors (code, message, request ID) are now surfaced in the test email response and written to `debug.log` when `WP_DEBUG` is enabled. SES failures during normal `wp_mail()` flow are also logged before the WordPress default mailer takes over.
+
+= 1.2.0 =
+* Added support for defining AWS credentials via PHP constants in wp-config.php (`FSSFAS_ACCESS_KEY_ID`, `FSSFAS_SECRET_ACCESS_KEY`, `FSSFAS_REGION`). When a constant is defined, the matching field in the settings UI is locked.
+
+= 1.1.0 =
+* Fixed HTML email detection - emails with common HTML tags are now correctly sent as text/html
+
+= 1.0.0 =
+* Initial release
