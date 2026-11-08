@@ -136,7 +136,7 @@ Set Redirect Mode (under Settings > Fullworks SES) to "Always" or "Redirect when
 
 = 1.3.2 =
 * Updated bundled `aws/aws-sdk-php` to the latest stable release.
-* Changed 6 escape late outputs to comply with reviewer recommendations.
+* Improved security, following plugin review recommendations.
 
 = 1.3.1 =
 * Updated bundled `aws/aws-sdk-php` to the latest stable release.
@@ -145,7 +145,8 @@ Set Redirect Mode (under Settings > Fullworks SES) to "Always" or "Redirect when
 = 1.3.0 =
 * Renamed plugin to "Fullworks Simple Setup for Amazon SES" (previously "Simple AWS SES"). Slug, namespace (`Fullworks\SimpleSetupForAmazonSes\`), prefix (`fssfas` / `FSSFAS`), option key (`fssfas_settings`), AJAX action and wp-config constants (`FSSFAS_ACCESS_KEY_ID`, `FSSFAS_SECRET_ACCESS_KEY`, `FSSFAS_REGION`) all updated.
 * All admin UI strings, AJAX responses, and the test email body are now translatable via the `fullworks-simple-setup-for-amazon-ses` text domain.
-* Security: outgoing messages are now assembled with WordPress' bundled PHPMailer, which validates addresses and strips line breaks from headers, closing a potential email header injection path when other plugins pass untrusted data to `wp_mail()`.
+* Security: improved security
+* Outgoing messages are now assembled with WordPress' bundled PHPMailer.
 * The settings page JavaScript and CSS are now enqueued properly (`wp_enqueue_script` / `wp_localize_script`) instead of being printed inline.
 * Added a privacy policy suggestion via `wp_add_privacy_policy_content()`, and an "External Services" section in the readme documenting exactly what data is sent to Amazon SES.
 * Updated bundled `aws/aws-sdk-php` to the latest stable release and stripped the unused AWS service clients so the plugin download is dramatically smaller.
