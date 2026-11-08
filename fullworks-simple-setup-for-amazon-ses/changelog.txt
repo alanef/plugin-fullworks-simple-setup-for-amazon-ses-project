@@ -1,3 +1,6 @@
+= Unreleased =
+* Changed: tested up to WordPress 7.1
+
 = 1.5.0 =
 * Added staging-safe email redirect: reroute all outgoing mail to one or more catch-all addresses (Never / non-production / Always) while still sending for real through SES. Original recipients are preserved in `X-Original-To`/`X-Original-Cc`/`X-Original-Bcc` headers, Cc/Bcc are dropped from delivery, and the subject is prefixed with the original recipient.
 * A warning banner is shown in wp-admin while redirect is active, and each redirected send is logged, so trapped mail is never silent.
